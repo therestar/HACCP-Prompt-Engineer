@@ -1,5 +1,6 @@
 # HACCP Prompt Engineer 
 Questa repository contiene un progetto dedicato alla realizzazione di una dashboard interattiva per l’esplorazione dei richiami alimentari pubblicati dal [Ministero della Salute](https://www.salute.gov.it/new/). L’obiettivo è trasformare i dati testuali dei richiami in informazioni strutturate a supporto dell’analisi dei rischi e delle attività HACCP.
+
 ![dashboard showcase][https://github.com/therestar/test/blob/main/dashboard_showcase.gif]
 
 # Prompt finali
