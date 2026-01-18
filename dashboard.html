@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Richiami Alimentari HACCP</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background: #f5f7fa; color: #333; padding: 20px; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #2c3e50; }
+        h1 { color: #2c3e50; font-size: 28px; }
+        
+        .controls { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 30px; }
+        .filter-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 15px; }
+        .filter-group { display: flex; flex-direction: column; gap: 8px; min-width: 200px; }
+        label { font-weight: 600; color: #34495e; font-size: 14px; }
+        select, input { padding: 10px 15px; border: 2px solid #dfe6e9; border-radius: 8px; font-size: 14px; }
+        select:focus, input:focus { outline: none; border-color: #3498db; }
+        
+        .btn { padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: 0.3s; }
+        .btn:hover { background: #2980b9; transform: translateY(-2px); }
+        .export-btn { background: #27ae60; }
+        .export-btn:hover { background: #219653; }
+        
+        .table-container { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 30px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #2c3e50; color: white; text-align: left; padding: 15px; font-weight: 600; }
+        td { padding: 12px 15px; border-bottom: 1px solid #f1f2f6; }
+        tr:hover { background: #f8f9fa; }
+        
+        .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 25px; margin-bottom: 30px; }
+        .chart-box { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        
+        .badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block; }
+        .biologico { background: #ffebee; color: #c62828; }
+        .chimico { background: #fff3e0; color: #ef6c00; }
+        .allergene { background: #f3e5f5; color: #7b1fa2; }
+        .etichettatura { background: #e3f2fd; color: #1565c0; }
+        
+        .bassa { background: #e8f5e9; color: #2e7d32; }
+        .media { background: #fff3e0; color: #f57c00; }
+        .alta { background: #ffebee; color: #d32f2f; }
+        .critica { background: #fce4ec; color: #c2185b; }
+        
+        .footer { text-align: right; margin-top: 40px; color: #7f8c8d; font-size: 14px; font-style: italic; }
+        
+        @media (max-width: 768px) {
+            .charts { grid-template-columns: 1fr; }
+            .filter-row { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📋 Dashboard Richiami Alimentari</h1>
+        <button class="btn export-btn" onclick="exportCSV()">📥 Esporta CSV</button>
+    </div>
+    
+    <div class="controls">
+        <div class="filter-row">
+            <div class="filter-group">
+                <label>Tipo di Rischio:</label>
+                <select id="filterRischio" onchange="filterData()">
+                    <option value="">Tutti</option>
+                    <option value="biologico">Biologico</option>
+                    <option value="chimico">Chimico</option>
+                    <option value="allergene">Allergene</option>
+                    <option value="etichettatura">Etichettatura</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Gravità:</label>
+                <select id="filterGravita" onchange="filterData()">
+                    <option value="">Tutte</option>
+                    <option value="bassa">Bassa</option>
+                    <option value="media">Media</option>
+                    <option value="alta">Alta</option>
+                    <option value="critica">Critica</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Anno:</label>
+                <select id="filterAnno" onchange="filterData()">
+                    <option value="">Tutti</option>
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <div class="charts">
+        <div class="chart-box">
+            <canvas id="chartRischio"></canvas>
+        </div>
+        <div class="chart-box">
+            <canvas id="chartGravita"></canvas>
+        </div>
+    </div>
+    
+    <div class="table-container">
+        <table id="richiamiTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Data</th>
+                    <th>Prodotto</th>
+                    <th>Tipo Rischio</th>
+                    <th>Gravità</th>
+                    <th>Lotto</th>
+                    <th>Motivo</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+    
+    <div class="footer">
+        Realizzato con l'IA
+    </div>
+
+    <script>
+        const richiamiData = [
+            {id: 1, data: "02/01/2026", prodotto: "Pasta di Acciughe", rischio: "chimico", gravita: "alta", lotto: "LPH 024 24 07 2026", motivo: "Istamina oltre limiti"},
+            {id: 2, data: "23/10/2025", prodotto: "Mielprotein al Cioccolato", rischio: "chimico", gravita: "media", lotto: "D0226", motivo: "Residuo antimicrobico"},
+            {id: 3, data: "11/11/2025", prodotto: "Curcuma Macinata", rischio: "biologico", gravita: "media", lotto: "88137E110924", motivo: "Bacillus cereus"},
+            {id: 4, data: "09/12/2025", prodotto: "Mozzarelle in carrozza", rischio: "allergene", gravita: "critica", lotto: "252022, 25204", motivo: "Etichetta errata (pesce)"},
+            {id: 5, data: "15/01/2026", prodotto: "Minestrone Surgelato", rischio: "chimico", gravita: "alta", lotto: "125265", motivo: "Alcaloidi del tropano"},
+            {id: 6, data: "09/01/2026", prodotto: "Latte BF 2 UHT", rischio: "biologico", gravita: "alta", lotto: "Q5185B--, Q5312B--, Q5351B--", motivo: "Contaminante microbiologico"},
+            {id: 7, data: "02/01/2026", prodotto: "Mozzarella di Bufala DOP", rischio: "chimico", gravita: "alta", lotto: "25349", motivo: "Aflatossina M1"}
+        ];
+
+        let filteredData = [...richiamiData];
+        let rischioChart, gravitaChart;
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            filteredData.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.id}</td>
+                    <td>${item.data}</td>
+                    <td><strong>${item.prodotto}</strong></td>
+                    <td><span class="badge ${item.rischio}">${item.rischio.toUpperCase()}</span></td>
+                    <td><span class="badge ${item.gravita}">${item.gravita.toUpperCase()}</span></td>
+                    <td>${item.lotto}</td>
+                    <td>${item.motivo}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function renderCharts() {
+            const ctx1 = document.getElementById('chartRischio').getContext('2d');
+            const ctx2 = document.getElementById('chartGravita').getContext('2d');
+            
+            const rischioCount = filteredData.reduce((acc, item) => {
+                acc[item.rischio] = (acc[item.rischio] || 0) + 1;
+                return acc;
+            }, {});
+            
+            const gravitaCount = filteredData.reduce((acc, item) => {
+                acc[item.gravita] = (acc[item.gravita] || 0) + 1;
+                return acc;
+            }, {});
+            
+            if (rischioChart) rischioChart.destroy();
+            if (gravitaChart) gravitaChart.destroy();
+            
+            rischioChart = new Chart(ctx1, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(rischioCount),
+                    datasets: [{
+                        data: Object.values(rischioCount),
+                        backgroundColor: ['#ff6b6b', '#ffa726', '#ab47bc', '#42a5f5'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: 'Distribuzione per Tipo di Rischio', font: {size: 16} }
+                    }
+                }
+            });
+            
+            gravitaChart = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(gravitaCount),
+                    datasets: [{
+                        label: 'Numero Richiami',
+                        data: Object.values(gravitaCount),
+                        backgroundColor: ['#66bb6a', '#ffa726', '#ef5350', '#ec407a'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                    },
+                    plugins: {
+                        title: { display: true, text: 'Distribuzione per Gravità', font: {size: 16} }
+                    }
+                }
+            });
+        }
+
+        function filterData() {
+            const rischio = document.getElementById('filterRischio').value;
+            const gravita = document.getElementById('filterGravita').value;
+            const anno = document.getElementById('filterAnno').value;
+            
+            filteredData = richiamiData.filter(item => {
+                const itemAnno = item.data.split('/')[2];
+                return (!rischio || item.rischio === rischio) &&
+                       (!gravita || item.gravita === gravita) &&
+                       (!anno || itemAnno === anno);
+            });
+            
+            renderTable();
+            renderCharts();
+        }
+
+        function exportCSV() {
+            const headers = ['ID', 'Data', 'Prodotto', 'Tipo Rischio', 'Gravità', 'Lotto', 'Motivo'];
+            const csvContent = [
+                headers.join(','),
+                ...filteredData.map(item => [
+                    item.id,
+                    `"${item.data}"`,
+                    `"${item.prodotto}"`,
+                    item.rischio,
+                    item.gravita,
+                    `"${item.lotto}"`,
+                    `"${item.motivo}"`
+                ].join(','))
+            ].join('\n');
+            
+            const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `richiami_alimentari_${new Date().toISOString().slice(0,10)}.csv`;
+            link.click();
+        }
+
+        // Inizializzazione
+        renderTable();
+        renderCharts();
+    </script>
+</body>
+</html>
